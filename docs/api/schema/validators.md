@@ -115,3 +115,112 @@ app.service('messages').hooks({
   }
 })
 ```
+
+## Validating Custom Methods
+
+Custom service methods can also benefit from validation to ensure that the data they receive and return matches the expected schema. This section demonstrates how to apply validation to [custom service methods](../services.md#custom-methods).
+
+### Example: Validating a Custom Method
+
+The following example shows how to:
+
+1. Define TypeBox schemas for the request and response data of a custom method
+2. Create validators from these schemas using `getValidator`
+3. Implement the custom method in a service class
+4. Apply the validator to the custom method using `schemaHooks.validateData`
+
+```ts
+import { Ajv, schemaHooks } from '@feathersjs/schema'
+import { Type, getValidator } from '@feathersjs/typebox'
+import type { Static } from '@feathersjs/typebox'
+import { dataValidator } from '../validators'
+import type { HookContext, Params } from '@feathersjs/feathers'
+
+// Define the schema for the custom method request data
+const processPaymentSchema = Type.Object(
+  {
+    amount: Type.Number({ minimum: 0.01 }),
+    currency: Type.String({ enum: ['USD', 'EUR', 'GBP'] }),
+    description: Type.Optional(Type.String()),
+    customerId: Type.String({ format: 'uuid' })
+  },
+  { $id: 'ProcessPayment', additionalProperties: false }
+)
+type ProcessPaymentData = Static<typeof processPaymentSchema>
+
+// Define the schema for the custom method response data
+const paymentResultSchema = Type.Object(
+  {
+    transactionId: Type.String(),
+    status: Type.String({ enum: ['succeeded', 'pending', 'failed'] }),
+    amount: Type.Number(),
+    currency: Type.String(),
+    timestamp: Type.String({ format: 'date-time' })
+  },
+  { $id: 'PaymentResult', additionalProperties: false }
+)
+type PaymentResult = Static<typeof paymentResultSchema>
+
+// Create validators for the request and response data
+const processPaymentValidator = getValidator(processPaymentSchema, dataValidator)
+const paymentResultValidator = getValidator(paymentResultSchema, dataValidator)
+
+// Implement the service with the custom method
+class PaymentService {
+  async processPayment(data: ProcessPaymentData, params: Params): Promise<PaymentResult> {
+    // Process the payment using a payment gateway or other logic
+    // This is just an example implementation
+    return {
+      transactionId: crypto.randomUUID(),
+      status: 'succeeded',
+      amount: data.amount,
+      currency: data.currency,
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+// Register the service with the custom method
+const app = feathers<{ 'payments': PaymentService }>()
+app.use('payments', new PaymentService(), {
+  methods: ['processPayment']
+})
+
+// Apply validation to the custom method
+app.service('payments').hooks({
+  around: {
+    processPayment: [
+      // Validate the incoming data
+      schemaHooks.validateData(processPaymentValidator),
+      // You could also validate the result if needed
+      async (context: HookContext, next) => {
+        await next()
+        // Validate the response data
+        const result = context.result
+        const validated = paymentResultValidator(result)
+        if (validated !== result) {
+          throw new Error('Invalid payment result format')
+        }
+      }
+    ]
+  }
+})
+```
+
+In this example:
+
+1. We define two TypeBox schemas:
+   - `processPaymentSchema` for validating the incoming request data
+   - `paymentResultSchema` for validating the response data
+
+2. We create validators from these schemas using `getValidator` and our `dataValidator` instance.
+
+3. We implement a `PaymentService` class with a custom `processPayment` method.
+
+4. We register the service with the custom method using the `methods` option.
+
+5. We apply validation to the custom method using:
+   - `schemaHooks.validateData(processPaymentValidator)` to validate the incoming data
+   - A custom hook to validate the response data (optional but recommended for consistency)
+
+This approach ensures that both the data sent to your custom method and the data it returns conform to your defined schemas, providing type safety and validation throughout your application.

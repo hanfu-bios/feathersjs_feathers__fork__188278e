@@ -276,6 +276,12 @@ const app = feathers<ServiceTypes>()
 
 See the [REST client](./client/rest.md) and [Socket.io client](./client/socketio.md) chapters on how to use those custom methods on the client.
 
+<BlockQuote type="info">
+
+For information on how to apply validation to custom methods using TypeBox schemas and validators, see the [Validating Custom Methods](./schema/validators.md#validating-custom-methods) section.
+
+</BlockQuote>
+
 <BlockQuote type="warning" label="Important">
 
 When passing the `methods` option **all methods** you want to expose, including standard service methods, must be listed. This allows to completely disable standard service method you might not want to expose. The `methods` option only applies to external access (via a transport like HTTP or websockets). All methods continue to be available internally on the server.
